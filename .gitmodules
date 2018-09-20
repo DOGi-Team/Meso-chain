@@ -1,0 +1,3 @@
+[submodule "burrow"]
+	path = burrow
+	url = https://github.com/hyperledger/burrow.git
