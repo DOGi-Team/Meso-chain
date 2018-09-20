@@ -13,7 +13,7 @@
 
 ## Getting involved
 Want to report a bug, request a feature, contribute or translate Meso-chain? You can adopt these means.
-* Browse our [issues](https://github.com/DOGiforthegame/Meso-chain/issues), comment on [proposals](https://github.com/DOGiforthegame/Meso-chain/pulls), report bugs.
+* Browse our [issues](https://github.com/DOGi-Team/Meso-chain/issues), comment on [proposals](https://github.com/DOGi-Team/Meso-chain/pulls), report bugs.
 * If you need technical support or customization service, contact us: sales@mesochain.com.
 
 ## What does "meso" mean
