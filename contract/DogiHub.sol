@@ -1,16 +1,16 @@
 pragma solidity ^0.4.24;
 
-import "../vendor/openzeppelin-solidity/contracts/math/SafeMath.sol";
-import "../vendor/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
-import "../vendor/openzeppelin-solidity/contracts/ownership/Ownable.sol";
+import "github.com/OpenZeppelin/openzeppelin-solidity/contracts/math/SafeMath.sol";
+import "github.com/OpenZeppelin/openzeppelin-solidity/contracts/token/ERC20/IERC20.sol";
+import "github.com/OpenZeppelin/openzeppelin-solidity/contracts/ownership/Ownable.sol";
 
 contract DogiHub is Ownable{
 
   using SafeMath for uint256;
 
 
-  event TransferToBypass(uint256 indexed id, address indexed bypassContract, address indexed from, address indexed to, uint256 value);
-  event TransferFromBypass(uint256 indexed id, address indexed bypassContract, address indexed from, address indexed to, uint256 value);
+  event TransferToBypass(uint256 id, address indexed bypassContract, address indexed from, address indexed to, uint256 value);
+  event TransferFromBypass(uint256 id, address indexed bypassContract, address indexed from, address indexed to, uint256 value);
 
   mapping (address => address) bypassContract;
   mapping (address => uint256) transferToBypassId;
