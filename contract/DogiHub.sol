@@ -9,8 +9,8 @@ contract DogiHub is Ownable{
   using SafeMath for uint256;
 
 
-  event TransferToBypass(uint256 id, address indexed bypassContract, address indexed from, address indexed to, uint256 value);
-  event TransferFromBypass(uint256 id, address indexed bypassContract, address indexed from, address indexed to, uint256 value);
+  event TransferToBypass(address indexed bypassContract, address indexed from, address indexed to, uint256 id, uint256 value);
+  event TransferFromBypass(address indexed bypassContract, address indexed from, address indexed to, uint256 id, uint256 value);
 
   mapping (address => address) bypassContract;
   mapping (address => uint256) transferToBypassId;
@@ -32,7 +32,7 @@ contract DogiHub is Ownable{
     IERC20 _contract = IERC20(_contractAddress);
 
     _contract.transferFrom(msg.sender, this, _value);
-    emit TransferToBypass(transferToBypassId[_contractAddress], bypassContract[_contractAddress], msg.sender, _to, _value);
+    emit TransferToBypass(bypassContract[_contractAddress], msg.sender, _to, transferToBypassId[_contractAddress], _value);
 
     transferToBypassId[_contractAddress].add(1);
     return true;
@@ -45,7 +45,7 @@ contract DogiHub is Ownable{
     IERC20 _contract = IERC20(_contractAddress);
 
     _contract.transfer(_to, _value);
-    emit TransferFromBypass(_id, bypassContract[_contractAddress], _from, _to, _value);
+    emit TransferFromBypass(bypassContract[_contractAddress], _from, _to, _id, _value);
 
     transferFromBypassId[_contractAddress] = _id.add(1);
 

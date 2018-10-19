@@ -1,0 +1,3 @@
+[submodule "vendor/openzeppelin-solidity"]
+	path = vendor/openzeppelin-solidity
+	url = https://github.com/TangHHH/openzeppelin-solidity.git
