@@ -1,48 +1,42 @@
+let externalErc20Address = '0xB8c77482e45F1F44dE1745F52C74426C631bDD52';
 const Web3 = require('web3');
 const fs = require('fs');
 const net = require('net');
 let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
-if (config.WebsocketProvider !== undefined) {
-    var web3 = new Web3(new Web3.providers.WebsocketProvider(config.WebsocketProvider));
+if (config.internal.WebsocketProvider !== undefined) {
+    var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
 }
-if (config.mainnet.HttpProvider !== undefined) {
-    var mainnetWeb3 = new Web3(new Web3.providers.HttpProvider(config.mainnet.HttpProvider));
+if (config.external.HttpProvider !== undefined) {
+    var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
 }
-let privateKey = fs.readFileSync(__dirname + '/../privatekey/private.key').toString();
-let account = web3.eth.accounts.wallet.add(privateKey);
-let mainnetAddress = '0xB8c77482e45F1F44dE1745F52C74426C631bDD52';
-let mainnetPrivateKey = fs.readFileSync(__dirname + '/../privatekey/mainnet_private.key').toString();
-let mainnetAccount = mainnetWeb3.eth.accounts.wallet.add(mainnetPrivateKey);
-let hubAddress;
+let internalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
+let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
+let externalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
+let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
 async function copyERC20() {
-    let mainnetContract = new mainnetWeb3.eth.Contract(config.erc20Abi, mainnetAddress);
-    let name = await mainnetContract.methods.name().call();
-    let symbol = await mainnetContract.methods.symbol().call();
-    let decimals = await mainnetContract.methods.decimals().call();
-    let totalSupply = await mainnetContract.methods.totalSupply().call();
-    let contract = new web3.eth.Contract(config.erc20Abi, null, {
-        from: account.address,
+    let externalErc20 = new externalWeb3.eth.Contract(config.erc20Abi, externalErc20Address);
+    let name = await externalErc20.methods.name().call();
+    let symbol = await externalErc20.methods.symbol().call();
+    let decimals = await externalErc20.methods.decimals().call();
+    let totalSupply = await externalErc20.methods.totalSupply().call();
+    let internalErc20 = new internalWeb3.eth.Contract(config.erc20Abi, null, {
+        from: internalAccount.address,
         gas: 10000000
     });
-    contract.deploy({
+    internalErc20 = await internalErc20.deploy({
         data: config.erc20Code,
         arguments: [name, symbol, decimals, totalSupply]
-    }).send().on('error', function(error) {
-        console.log(error)
-    }).on('transactionHash', function(transactionHash) {
-        console.log(transactionHash);
-    }).on('receipt', function(receipt) {
-        console.log(receipt.contractAddress) // contains the new contract address
-    }).then(function(erc20) {
-        erc20.methods.transfer(hubAddress, totalSupply).send({
-            from: account.address,
-            gas: 10000000
-        });
-        let mainnetHub = new mainnetWeb3.eth.Contract(config.mainnet.hubAbi, config.mainnet.hubAddress);
-        mainnetHub.methods.addContract(mainnetAddress, erc20.options.address).send({
-            from: mainnetAccount.address
-        });
-        console.log(erc20.options.address) // instance with the new contract address
+    }).send();
+    await internalErc20.methods.transfer(config.internal.hubAddress, totalSupply).send();
+    let externalHub = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress);
+    await externalHub.methods.addContract(externalErc20Address, internalErc20.options.address).send({
+        from: externalAccount.address
     });
+    let internalHub = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress);
+    await internalHub.methods.addContract(internalErc20.options.address, externalErc20Address).send({
+        from: internalAccount.address,
+        gas: 10000000
+    });
+    console.log(internalErc20.options.address) // instance with the new contract address
 }
 copyERC20();

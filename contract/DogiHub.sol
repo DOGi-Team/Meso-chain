@@ -9,46 +9,57 @@ contract DogiHub is Ownable{
   using SafeMath for uint256;
 
 
-  event TransferOut(address indexed bypassContract, address indexed from, address indexed to, uint256 id, uint256 value);
-  event TransferIn(address indexed bypassContract, address indexed from, address indexed to, uint256 id, uint256 value);
+  event TransferOut(uint256 indexed id, address indexed externalErc20, address indexed from, address to, uint256 value);
+  event TransferIn(uint256 indexed id, address indexed externalErc20, address from, address indexed to, uint256 value);
 
-  mapping (address => address) bypassContract;
+  mapping (address => address) contractMap;
   mapping (address => uint256) transferOutId;
   mapping (address => uint256) transferInId;
 
-  function addContract(address _contractAddress, address _bypassAddress) public onlyOwner returns (bool){
-  	require(_bypassAddress != address(0));
+  function addContract(address _internalErc20, address _externalErc20) public onlyOwner returns (bool){
+  	require(_internalErc20 != address(0));
+    require(_externalErc20 != address(0));
 
-  	bypassContract[_contractAddress] = _bypassAddress;
-  	//transferOutId[_contractAddress] = 0;
-  	//transferInId[_contractAddress] = 0;
+  	contractMap[_internalErc20] = _externalErc20;
+  	transferOutId[_internalErc20] = 0;
+  	transferInId[_internalErc20] = 0;
 
   	return true;
   }
 
-  function transferOut(address _contractAddress, address _to, uint256 _value) public returns (bool) {
+  function transferOut(address _internalErc20, address _to, uint256 _value) public returns (bool) {
     require(_to != address(0));
+    require(_internalErc20 != address(0));
+    require(contractMap[_internalErc20] != address(0));
 
-    IERC20 _contract = IERC20(_contractAddress);
+    IERC20 _erc20 = IERC20(_internalErc20);
 
-    _contract.transferFrom(msg.sender, this, _value);
-    emit TransferOut(bypassContract[_contractAddress], msg.sender, _to, transferOutId[_contractAddress], _value);
+    _erc20.transferFrom(msg.sender, this, _value);
+    emit TransferOut(transferOutId[_internalErc20], contractMap[_internalErc20], msg.sender, _to, _value);
 
-    transferOutId[_contractAddress].add(1);
+    transferOutId[_internalErc20].add(1);
     return true;
   }
 
+  function multTransferIn(uint256[] _id, address[] _internalErc20, address[] _from, address[] _to, uint256[] _value) public onlyOwner returns (bool){
+    for (uint256 i = 0; i < _id.length; i++){
+      transferIn(_id[i],_internalErc20[i],_from[i],_to[i],_value[i]);
+    }
+  }
+
 //change to array
-  function transferIn(uint256 _id, address _contractAddress, address _from, address _to, uint256 _value) public onlyOwner returns (bool){
+  function transferIn(uint256 _id, address _internalErc20, address _from, address _to, uint256 _value) public onlyOwner returns (bool){
     require(_to != address(0));
-    require(_id == transferInId[_contractAddress]);
+    require(_internalErc20 != address(0));
+    require(contractMap[_internalErc20] != address(0));
+    require(_id == transferInId[_internalErc20]);
 
-    IERC20 _contract = IERC20(_contractAddress);
+    IERC20 _erc20 = IERC20(_internalErc20);
 
-    _contract.transfer(_to, _value);
-    emit TransferIn(bypassContract[_contractAddress], _from, _to, _id, _value);
+    _erc20.transfer(_to, _value);
+    emit TransferIn(_id, contractMap[_internalErc20], _from, _to, _value);
 
-    transferInId[_contractAddress] = _id.add(1);
+    transferInId[_internalErc20] = _id.add(1);
 
     return true;
   }
