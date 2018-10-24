@@ -1,0 +1,12 @@
+[submodule "go-ethereum"]
+	path = go-ethereum
+	url = https://github.com/TangHHH/go-ethereum.git
+[submodule "web3.js"]
+	path = web3.js
+	url = https://github.com/TangHHH/web3.js.git
+[submodule "burrow"]
+	path = burrow
+	url = https://github.com/TangHHH/burrow.git
+[submodule "openzeppelin-solidity"]
+	path = openzeppelin-solidity
+	url = https://github.com/TangHHH/openzeppelin-solidity.git
