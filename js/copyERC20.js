@@ -13,7 +13,7 @@ let internalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/internal_pr
 let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
 let externalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
 let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
-async function copyERC20() {
+async function copyERC20(externalErc20Address) {
     let externalErc20 = new externalWeb3.eth.Contract(config.erc20Abi, externalErc20Address);
     let name = await externalErc20.methods.name().call();
     let symbol = await externalErc20.methods.symbol().call();
@@ -39,4 +39,4 @@ async function copyERC20() {
     });
     console.log(internalErc20.options.address) // instance with the new contract address
 }
-copyERC20();
+copyERC20(externalErc20Address);

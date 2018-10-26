@@ -158,17 +158,37 @@ async function test() {
     // }
 }
 
+
+function sleep(time = 0) {
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        resolve();
+      }, time);
+    })
+  }
+
+async function test2(){
+	return test3();
+}
+
+async function test3(){
+	await sleep(3000);
+	console.log(333);
+	throw new Error('www');
+	return 1;
+}
+
 async function test1(){
 	try{
 
-	await test();
+	a = await sleep(1000);
+	console.log(a);
 	}catch(e){
 		console.log(e,1234);
 	}
 }
-sleep(1000);
 
-console.log(test1());
+test1();
 
 // process.on('unhandledRejection', error => {
 //   console.error('unhandledRejection', error);

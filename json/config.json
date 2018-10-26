@@ -10,6 +10,7 @@
 	},
 	"external":{
 		"hubAddress":"",
-		"HttpProvider":"https://mainnet.infura.io/RcHJmyrq3CF5nHjQiLHD"
+		"HttpProvider":"https://mainnet.infura.io/RcHJmyrq3CF5nHjQiLHD",
+		"erc20Address":[]
 	}
 }

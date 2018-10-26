@@ -1,3 +1,10 @@
+function sleep(time = 0) {
+    return new Promise((resolve, reject) => {
+        setTimeout(() => {
+            resolve();
+        }, time);
+    })
+}
 const Web3 = require('web3');
 const fs = require('fs');
 const net = require('net');
@@ -21,77 +28,89 @@ process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);
     process.exit(1) // To exit with a 'failure' code
 });
-async function transferErc20(fromChainHub, toChainHub, fromErc20, toErc20) {
-    let checkErc20Address = async function() {
-        if (fromErc20) {
-            toErc20 = await fromChainHub.methods.contractMap(fromErc20).call();
-            confirmFromErc20 = await toChainHub.methods.contractMap(toErc20).call();
-            if (confirmFromErc20 != fromErc20) {
-                throw new Error('Non-correspondence erc20 address.');
-            }
-        } else if (toErc20) {
-            fromErc20 = await toChainHub.methods.contractMap(toErc20).call();
-            confirmToErc20 = await fromChainHub.methods.contractMap(fromErc20).call();
-            if (confirmToErc20 != toErc20) {
-                throw new Error('Non-correspondence erc20 address.');
-            }
-        } else {
-            throw new Error('No erc20 address.');
+/****************class begin****************/
+function Erc20Transfer(fromChainHub, toChainHub, fromErc20, toErc20) {
+    this.fromChainHub = fromChainHub;
+    this.toChainHub = toChainHub;
+    this.fromErc20 = fromErc20;
+    this.toErc20 = toErc20;
+    this.pre = {};
+}
+Erc20Transfer.prototype.checkAddress = async function() {
+    if (this.fromErc20) {
+        this.toErc20 = await this.fromChainHub.methods.contractMap(this.fromErc20).call();
+        let confirmFromErc20 = await this.toChainHub.methods.contractMap(this.toErc20).call();
+        if (confirmFromErc20 != this.fromErc20) {
+            throw new Error('Non-correspondence erc20 address.');
         }
+    } else if (this.toErc20) {
+        this.fromErc20 = await this.toChainHub.methods.contractMap(this.toErc20).call();
+        let confirmToErc20 = await this.fromChainHub.methods.contractMap(this.fromErc20).call();
+        if (confirmToErc20 != this.toErc20) {
+            throw new Error('Non-correspondence erc20 address.');
+        }
+    } else {
+        throw new Error('No erc20 address.');
     }
-    await checkErc20Address();
-    // let fromId = await fromChainHub.methods.transferOutId(fromErc20).call();
-    let toId = await toChainHub.methods.transferIn(toErc20).call();
-    let pre = {};
-    let startEvents = await fromChainHub.getPastEvents('TransferOut', {
+};
+Erc20Transfer.prototype.run = async function() {
+    await this.checkAddress();
+    // let fromId = await this.fromChainHub.methods.transferOutId(this.fromErc20).call();
+    let toId = await this.toChainHub.methods.transferIn(toErc20).call();
+    let startEvents = await this.fromChainHub.getPastEvents('TransferOut', {
         filter: {
             id: toId,
-            erc20Address: fromErc20
+            erc20Address: this.fromErc20
         },
         fromBlock: 0
     });
-    if(startEvents.length == 0){
-    	throw new Error('Error log.');
+    if (startEvents.length == 0) {
+        throw new Error('Error log.');
     }
-
     let fromBlock = startEvents.pop().blockNumber;
-    fromChainHub.events.TransferOut({
+    this.fromChainHub.events.TransferOut({
         fromBlock: fromBlock,
         filter: {
-            erc20Address: fromErc20
+            erc20Address: this.fromErc20
         }
     }).on('data', function(event) {
         let data = event.returnValues;
         if (data.id > toId) {
-            pre[data.id] = data;
+            this.pre[data.id] = data;
         }
     }).on('error', console.error);
-    let transferIn = async function() {
-        let data = {
-            id: [],
-            erc20Address: [],
-            from: [],
-            to: [],
-            value: []
-        };
-        let i = await toChainHub.methods.transferIn(toErc20).call();
-        for (i++ ; typeof pre[i] !== 'undefined'; i++) {
-            data.id.push(i);
-            data.erc20Address.push(pre[i].outErc20);
-            data.from.push(pre[i].from);
-            data.to.push(pre[i].to);
-            data.value.push(pre[i].value);
-        }
-        if (data.id.length == 0) {
-            setTimeout(transferIn, 15000);
-        } else {
-            toChainHub.methods.transferIn(data.id, data.erc20Address, data.from, data.to, data.value).send().on('receipt', function(receipt) {
-                setTimeout(transferIn, 1000);
-            }).on('error', function(error) {
-                console.error(error);
-                transferIn();
-            });
-        }
+    return this.transferIn();
+};
+Erc20Transfer.prototype.transferIn = async function() {
+    let data = {
+        id: [],
+        erc20Address: [],
+        from: [],
+        to: [],
+        value: []
+    };
+    let i = await this.toChainHub.methods.transferIn(this.toErc20).call();
+    for (i++; typeof this.pre[i] !== 'undefined'; i++) {
+        data.id.push(i);
+        data.erc20Address.push(this.pre[i].outErc20);
+        data.from.push(this.pre[i].from);
+        data.to.push(this.pre[i].to);
+        data.value.push(this.pre[i].value);
     }
-    transferIn();
+    if (data.id.length == 0) {
+        return new Promise((resolve, reject) => setTimeout(() => resolve(this.transferIn()), 15000));
+    } else {
+        await this.toChainHub.methods.transferIn(data.id, data.erc20Address, data.from, data.to, data.value).send().on('error', function(error) {
+            console.error(error);
+        });
+        return new Promise((resolve, reject) => {
+            setTimeout(() => resolve(this.transferIn()), 1000);
+        });
+    }
+};
+/****************class end****************/
+for (let i = 0; i < config.external.erc20Address.length; i++) {
+    let externalErc20 = config.external.erc20Address[i];
+    new Erc20Transfer(externalHubContract, internalHubContract, externalErc20).run();
+    new Erc20Transfer(internalHubContract, externalHubContract, null, externalErc20).run();
 }
