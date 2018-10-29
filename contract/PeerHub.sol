@@ -8,7 +8,6 @@ contract PeerHub is Ownable{
 
   using SafeMath for uint256;
 
-
   event TransferOut(uint256 indexed id, address indexed erc20Address, address indexed from, address to, uint256 value, address outErc20);
   event TransferIn(uint256 indexed id, address indexed erc20Address, address from, address indexed to, uint256 value, address outErc20);
 
@@ -58,7 +57,6 @@ contract PeerHub is Ownable{
     _erc20.transfer(_to, _value);
     transferInId[_erc20Address] = _id;
     emit TransferIn(_id, _erc20Address, _from, _to, _value, contractMap[_erc20Address]);
-
 
     return true;
   }

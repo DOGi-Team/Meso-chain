@@ -12,7 +12,7 @@ let account = internalWeb3.eth.accounts.wallet.add(privateKey);
 let hub = new internalWeb3.eth.Contract(config.hubAbi, null, {
     from: account.address,
     data: config.hubCode,
-    gas: 10000000
+    gas: 3000000
 });
 async function deploy() {
     hub = await hub.deploy().send();

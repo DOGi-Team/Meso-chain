@@ -1,3 +1,6 @@
 [submodule "vendor/openzeppelin-solidity"]
 	path = vendor/openzeppelin-solidity
 	url = https://github.com/TangHHH/openzeppelin-solidity.git
+[submodule "vendor/go-ethereum"]
+	path = vendor/go-ethereum
+	url = https://github.com/TangHHH/go-ethereum.git
