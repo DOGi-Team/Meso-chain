@@ -1,66 +1,127 @@
-const Web3 = require('web3');
-const fs = require('fs');
-let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
-var web3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
-let cryptKey = "";
-let privateKey = "0x4a7d41e8385b03223d1fb20b9b4b3c68c252a41c8f92c785f573308a9a738b30";
-let account = web3.eth.accounts.wallet.add(privateKey);
-console.log(account);
-process.exit(0);
-let contract = new web3.eth.Contract(tokenAbi, tokenAddress, {
-    from: account.address,
-    gas: 3000000
-});
-// web3.eth.getTransaction('0x9fc76417374aa880d4449a1f7f31ec597f00b1f6f3dd2d66f4c9c6c445836d8b§234',function(error,result){
-// 	console.log(error);
-// })
-async function test() {
-    // try {
-        console.log("123", 456);
-    	throw new Error('skdjgla');
-        let a = contract.methods.transfer('0xB8c77482e45F1F44dE1745F52C74426C631bDD52', 1)
-        .send();
-        // .catch(console.log, 123);
-        // a = web3.eth.getTransaction('0xB8c77482e45F1F44dE1745F52C74426C631bDD52');
-        console.log(a,2423);
-    // } catch (e) {
-    //     console.log(e,23523);
-    // }
-}
-
-
 function sleep(time = 0) {
     return new Promise((resolve, reject) => {
-      setTimeout(() => {
-        resolve();
-      }, time);
+        setTimeout(() => {
+            resolve();
+        }, time);
     })
-  }
-
-async function test2(){
-	return test3();
+}
+const Web3 = require('web3');
+const fs = require('fs');
+const net = require('net');
+let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
+if (config.internal.WebsocketProvider !== undefined) {
+    var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
+}
+if (config.external.HttpProvider !== undefined) {
+    var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
+}
+let internalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
+let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
+let externalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
+let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
+let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress);
+let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress);
+process.on('unhandledRejection', error => {
+    console.error('unhandledRejection', error);
+    process.exit(1) // To exit with a 'failure' code
+});
+/****************class begin****************/
+function Chain(web3, hub, erc20Address, privateKey) {
+    this.web3 = web3;
+    if (erc20Address) {
+        this.erc20 = new web3.eth.Contract(config.erc20Abi, erc20Address);
+    }
+    this.hub = hub;
+    if (privateKey) {
+        this.account = web3.eth.accounts.wallet.add(privateKey);
+    } else {
+        this.account = web3.eth.accounts.wallet.create();
+    }
+}
+Chain.prototype.setErc20 = function(erc20Address) {
+    this.erc20 = new web3.eth.Contract(config.erc20Abi, erc20Address);
 }
 
-async function test3(){
-	await sleep(3000);
-	console.log(333);
-	throw new Error('www');
-	return 1;
+function Robot(chain1, chain2, fromIndex) {
+    this.chain1 = chain1;
+    this.chain2 = chain2;
+    this.fromIndex = 0;
 }
-
-async function test1(){
-	try{
-
-	a = await sleep(1000);
-	console.log(a);
-	}catch(e){
-		console.log(e,1234);
-	}
+Robot.prototype.checkAddress = async function() {
+    if (this.chain1.erc20 && this.chain2.erc20) {
+        let confirmErc20Address1 = await this.chain2.hub.methods.contractMap(this.chain2.erc20.options.address).call();
+        let confirmErc20Address2 = await this.chain1.hub.methods.contractMap(this.chain1.erc20.options.address).call();
+        if (confirmErc20Address1 != this.chain1.erc20.options.address && confirmErc20Address2 != this.chain2.erc20.options.address) {
+            throw new Error('Non-correspondence erc20 address.');
+        }
+    } else if (this.chain1.erc20) {
+        let erc20Address2 = await this.chain1.hub.methods.contractMap(this.chain1.erc20.options.address).call();
+        let confirmErc20Address1 = await this.chain2.hub.methods.contractMap(erc20Address2).call();
+        if (confirmErc20Address1 != this.chain1.erc20.options.address) {
+            throw new Error('Non-correspondence erc20 address.');
+        } else {
+            this.chain2.setErc20(erc20Address2);
+        }
+    } else if (this.chain2.erc20) {
+        let erc20Address1 = await this.chain2.hub.methods.contractMap(this.chain2.erc20.options.address).call();
+        let confirmErc20Address2 = await this.chain1.hub.methods.contractMap(erc20Address1).call();
+        if (confirmErc20Address2 != this.chain2.erc20.options.address) {
+            throw new Error('Non-correspondence erc20 address.');
+        } else {
+            this.chain1.setErc20(erc20Address1);
+        }
+    } else {
+        throw new Error('No erc20 address.');
+    }
+};
+Robot.prototype.takeErc20 = async function(fromPrivateKey, index, value) {
+    let fromAccount = this['chain' + index].web3.eth.accounts.wallet.add(fromPrivateKey);
+    let gasPrice = await this['chain' + index].web3.eth.getGasPrice();
+    this.fromIndex = index;
+    await this['chain' + index].erc20.methods.transfer(this['chain' + index].account.address, value).send({
+        from: fromAccount.address,
+        gas: 3000000,
+        gasPrice: gasPrice
+    });
+    await this.transfer(0.5);
 }
+Robot.prototype.transfer = async function(factor = 0.01 * Math.random()) {
+    let chain1, chain2;
+    if (this.fromIndex == 1) {
+        chain1 = this.chain1;
+        chain2 = this.chain2;
+        this.fromIndex = 2;
+    } else if (this.fromIndex == 2) {
+        chain1 = this.chain2;
+        chain2 = this.chain1;
+        this.fromIndex = 1;
+    } else {
+        return;
+    }
+    let gasPrice = await chain1.web3.eth.getGasPrice();
+    let erc20Amount = await chain1.erc20.methods.balanceOf(chain1.account.address).call();
+    let transferAmount = erc20Amount * factor;
+    await chain1.erc20.methods.approve(chain1.hub.options.address, transferAmount).send({
+        from: chain1.account.address,
+        gas: 3000000,
+        gasPrice: gasPrice
+    });
+    await chain1.hub.methods.transferOut(chain1.erc20.options.address, chain2.account.address, transferAmount).send({
+        from: chain1.account.address,
+        gas: 3000000,
+        gasPrice: gasPrice
+    });
+}
+Robot.prototype.run = async function() {
+    await this.checkAddress();
+    await this.takeErc20(externalPrivateKey,1,1000000);
+    while(this.fromIndex != 0){
+    	await this.transfer();
+    	await sleep(1000);
+    }
+};
 
-test1();
-
-// process.on('unhandledRejection', error => {
-//   console.error('unhandledRejection', error);
-// //  process.exit(1) // To exit with a 'failure' code
-// });
+/****************class end****************/
+for (let i = 0; i < 3; i++) {
+    new Robot(new Chain(externalWeb3, externalHubContract, config.external.erc20Address[0]), new Chain(internalWeb3, internalHubContract)).run();
+}

@@ -19,10 +19,13 @@ let internalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/internal_pr
 let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
 let externalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
 let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
-let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress);
+let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress, {
+    from: externalAccount.address,
+    gas: 3000000
+});
 let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress, {
     from: internalAccount.address,
-    gas: 10000000
+    gas: 3000000
 });
 process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);
@@ -98,7 +101,7 @@ Erc20Transfer.prototype.transferIn = async function() {
         data.value.push(this.pre[i].value);
     }
     if (data.id.length == 0) {
-        return new Promise((resolve, reject) => setTimeout(() => resolve(this.transferIn()), 15000));
+        return new Promise((resolve, reject) => setTimeout(() => resolve(this.transferIn()), 5000));
     } else {
         await this.toChainHub.methods.transferIn(data.id, data.erc20Address, data.from, data.to, data.value).send().on('error', function(error) {
             console.error(error);
