@@ -57,30 +57,54 @@ Erc20Transfer.prototype.checkAddress = async function() {
     }
 };
 Erc20Transfer.prototype.run = async function() {
+    let fromBlock0 = 0;
+    let fromBlock1 = 0;
     await this.checkAddress();
     // let fromId = await this.fromChainHub.methods.transferOutId(this.fromErc20).call();
-    let toId = await this.toChainHub.methods.transferIn(toErc20).call();
-    let startEvents = await this.fromChainHub.getPastEvents('TransferOut', {
-        filter: {
-            id: toId,
-            erc20Address: this.fromErc20
-        },
-        fromBlock: 0
-    });
-    if (startEvents.length == 0) {
-        throw new Error('Error log.');
+    let toId = await this.toChainHub.methods.transferInId(this.toErc20).call();
+    if (toId != 0) {
+        let startEvents = await this.fromChainHub.getPastEvents('TransferOut', {
+            filter: {
+                id: toId,
+                erc20Address: this.fromErc20
+            },
+            fromBlock: 0
+        });
+        if (startEvents.length == 0) {
+            throw new Error('Error log.');
+        }
+        fromBlock0 = startEvents.pop().blockNumber;
+        startEvents = await this.toChainHub.getPastEvents('TransferIn', {
+            filter: {
+                id: toId,
+                erc20Address: this.toErc20
+            },
+            fromBlock: 0
+        });
+        if (startEvents.length == 0) {
+            throw new Error('Error log.');
+        }
+        fromBlock1 = startEvents.pop().blockNumber;
     }
-    let fromBlock = startEvents.pop().blockNumber;
     this.fromChainHub.events.TransferOut({
-        fromBlock: fromBlock,
+        fromBlock: fromBlock0,
         filter: {
             erc20Address: this.fromErc20
         }
     }).on('data', function(event) {
         let data = event.returnValues;
+        console.log(data);
         if (data.id > toId) {
             this.pre[data.id] = data;
         }
+    }).on('error', console.error);
+    this.toChainHub.events.TransferIn({
+        fromBlock: fromBlock1,
+        filter: {
+            erc20Address: this.toErc20
+        }
+    }).on('data', function(event) {
+        delete this.pre[data.id];
     }).on('error', console.error);
     return this.transferIn();
 };
@@ -92,7 +116,7 @@ Erc20Transfer.prototype.transferIn = async function() {
         to: [],
         value: []
     };
-    let i = await this.toChainHub.methods.transferIn(this.toErc20).call();
+    let i = await this.toChainHub.methods.transferInId(this.toErc20).call();
     for (i++; typeof this.pre[i] !== 'undefined'; i++) {
         data.id.push(i);
         data.erc20Address.push(this.pre[i].outErc20);

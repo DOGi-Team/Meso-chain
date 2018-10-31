@@ -35,11 +35,11 @@ function Chain(web3, hub, erc20Address, privateKey) {
     if (privateKey) {
         this.account = web3.eth.accounts.wallet.add(privateKey);
     } else {
-        this.account = web3.eth.accounts.wallet.create();
+        this.account = web3.eth.accounts.wallet.add(web3.eth.accounts.create());
     }
 }
 Chain.prototype.setErc20 = function(erc20Address) {
-    this.erc20 = new web3.eth.Contract(config.erc20Abi, erc20Address);
+    this.erc20 = new this.web3.eth.Contract(config.erc20Abi, erc20Address);
 }
 
 function Robot(chain1, chain2, fromIndex) {
@@ -82,6 +82,17 @@ Robot.prototype.takeErc20 = async function(fromPrivateKey, index, value) {
         from: fromAccount.address,
         gas: 3000000,
         gasPrice: gasPrice
+    }).on('error', (error) => {
+        console.log('Transfer erc20 error: ' + error);
+    });
+    await this['chain' + index].web3.eth.sendTransaction({
+        from: fromAccount.address,
+        to: this['chain' + index].account.address,
+        value: 1e16,
+        gas: 3000000,
+        gasPrice: gasPrice
+    }).on('error', (error) => {
+        console.log('Transfer eth error: ' + error);
     });
     await this.transfer(0.5);
 }
@@ -103,25 +114,32 @@ Robot.prototype.transfer = async function(factor = 0.01 * Math.random()) {
     let transferAmount = erc20Amount * factor;
     await chain1.erc20.methods.approve(chain1.hub.options.address, transferAmount).send({
         from: chain1.account.address,
-        gas: 3000000,
+        gas: 1000000,
         gasPrice: gasPrice
     });
     await chain1.hub.methods.transferOut(chain1.erc20.options.address, chain2.account.address, transferAmount).send({
         from: chain1.account.address,
-        gas: 3000000,
+        gas: 1000000,
         gasPrice: gasPrice
     });
 }
-Robot.prototype.run = async function() {
+Robot.prototype.pre = async function() {
     await this.checkAddress();
-    await this.takeErc20(externalPrivateKey,1,1000000);
-    while(this.fromIndex != 0){
-    	await this.transfer();
-    	await sleep(1000);
+    await this.takeErc20(externalPrivateKey, 1, 1000000);
+}
+Robot.prototype.run = async function() {
+    while (this.fromIndex != 0) {
+        await this.transfer();
+        await sleep(1000);
     }
 };
-
 /****************class end****************/
-for (let i = 0; i < 3; i++) {
-    new Robot(new Chain(externalWeb3, externalHubContract, config.external.erc20Address[0]), new Chain(internalWeb3, internalHubContract)).run();
+let testInternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_internal_private.key').toString().split('\n');
+let testExternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_external_private.key').toString().split('\n');
+async function pre() {
+    for (let i = 0; i < 3; i++) {
+        await new Robot(new Chain(externalWeb3, externalHubContract, config.external.erc20Address[0], testExternalPrivateKey[i]), new Chain(internalWeb3, internalHubContract, undefined, testInternalPrivateKey[i])).pre();
+    }
 }
+
+pre();
