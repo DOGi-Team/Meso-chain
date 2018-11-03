@@ -32,11 +32,14 @@ process.on('unhandledRejection', error => {
     process.exit(1) // To exit with a 'failure' code
 });
 /****************class begin****************/
-function Erc20Transfer(fromChainHub, toChainHub, fromErc20, toErc20) {
+function Erc20Transfer(fromWeb3, toWeb3, fromChainHub, toChainHub, fromErc20, toErc20) {
+    this.fromWeb3 = fromWeb3;
+    this.toWeb3 = toWeb3;
     this.fromChainHub = fromChainHub;
     this.toChainHub = toChainHub;
     this.fromErc20 = fromErc20;
     this.toErc20 = toErc20;
+    this.stop = true;
     this.pre = {};
 }
 Erc20Transfer.prototype.checkAddress = async function() {
@@ -57,87 +60,98 @@ Erc20Transfer.prototype.checkAddress = async function() {
     }
 };
 Erc20Transfer.prototype.run = async function() {
-    let fromBlock0 = 0;
-    let fromBlock1 = 0;
-    await this.checkAddress();
-    // let fromId = await this.fromChainHub.methods.transferOutId(this.fromErc20).call();
-    let toId = await this.toChainHub.methods.transferInId(this.toErc20).call();
-    if (toId != 0) {
-        let startEvents = await this.fromChainHub.getPastEvents('TransferOut', {
-            filter: {
-                id: toId,
-                erc20Address: this.fromErc20
-            },
-            fromBlock: 0
+    let sendTransferIn = function(id) {
+        this.pre[id].pending = true;
+        this.toChainHub.methods.transferIn(this.pre[id].id, this.pre[id].erc20Address, this.pre[id].from, this.pre[id].to, this.pre[id].value).send().on('error', function(error) {
+            console.error(error);
+            if (this.pre.hasOwnProperty(id)) this.pre[id].pending = false;
+        }).on('receipt', function(receipt) {
+            // if (typeof receipt.events.TransferIn !== 'undefined') delete this.pre[receipt.events.TransferIn.returnValues.id];
         });
-        if (startEvents.length == 0) {
-            throw new Error('Error log.');
-        }
-        fromBlock0 = startEvents.pop().blockNumber;
-        startEvents = await this.toChainHub.getPastEvents('TransferIn', {
-            filter: {
-                id: toId,
-                erc20Address: this.toErc20
-            },
-            fromBlock: 0
-        });
-        if (startEvents.length == 0) {
-            throw new Error('Error log.');
-        }
-        fromBlock1 = startEvents.pop().blockNumber;
     }
-    this.fromChainHub.events.TransferOut({
-        fromBlock: fromBlock0,
+    await this.checkAddress();
+    this.stop = false;
+    let toBlock = await this.fromWeb3.eth.getBlockNumber();
+    let events = await this.fromChainHub.getPastEvents('TransferOut', {
         filter: {
             erc20Address: this.fromErc20
-        }
-    }).on('data', function(event) {
-        let data = event.returnValues;
-        console.log(data);
-        if (data.id > toId) {
-            this.pre[data.id] = data;
-        }
-    }).on('error', console.error);
-    this.toChainHub.events.TransferIn({
-        fromBlock: fromBlock1,
+        },
+        fromBlock: 0,
+        toBlock: toBlock
+    });
+    for (let i = 0; i < events.length; i++) {
+        let data = events[i].returnValues;
+        data.pending = false;
+        this.pre[data.id] = data;
+    }
+    this.watchTransferIn(toBlock + 1);
+    toBlock = await this.toWeb3.eth.getBlockNumber();
+    events = await this.toChainHub.getPastEvents('TransferIn', {
         filter: {
             erc20Address: this.toErc20
+        },
+        fromBlock: 0,
+        toBlock: toBlock
+    });
+    for (let i = 0; i < events.length; i++) {
+        delete this.pre[events[i].returnValues.id];
+    }
+    this.watchTransferOut(toBlock + 1);
+    while (!this.stop) {
+        for (let i in this.pre) {
+            if (this.pre[i].pending) continue;
+            sendTransferIn(i);
         }
-    }).on('data', function(event) {
-        delete this.pre[data.id];
-    }).on('error', console.error);
-    return this.transferIn();
-};
-Erc20Transfer.prototype.transferIn = async function() {
-    let data = {
-        id: [],
-        erc20Address: [],
-        from: [],
-        to: [],
-        value: []
-    };
-    let i = await this.toChainHub.methods.transferInId(this.toErc20).call();
-    for (i++; typeof this.pre[i] !== 'undefined'; i++) {
-        data.id.push(i);
-        data.erc20Address.push(this.pre[i].outErc20);
-        data.from.push(this.pre[i].from);
-        data.to.push(this.pre[i].to);
-        data.value.push(this.pre[i].value);
-    }
-    if (data.id.length == 0) {
-        return new Promise((resolve, reject) => setTimeout(() => resolve(this.transferIn()), 5000));
-    } else {
-        await this.toChainHub.methods.transferIn(data.id, data.erc20Address, data.from, data.to, data.value).send().on('error', function(error) {
-            console.error(error);
-        });
-        return new Promise((resolve, reject) => {
-            setTimeout(() => resolve(this.transferIn()), 1000);
-        });
+        await sleep(15000);
     }
 };
+Erc20Transfer.prototype.watchTransferIn = async function(fromBlock = 0) {
+    while (!this.stop) {
+        let toBlock = await this.toWeb3.eth.getBlockNumber();
+        if (toBlock < fromBlock) {
+            await sleep(10000);
+        } else {
+            let events = await this.toChainHub.getPastEvents('TransferIn', {
+                filter: {
+                    erc20Address: this.toErc20
+                },
+                fromBlock: fromBlock,
+                toBlock: toBlock
+            });
+            for (let i = 0; i < events.length; i++) {
+                delete this.pre[events[i].returnValues.id];
+            }
+            fromBlock = toBlock + 1;
+            await sleep(2000);
+        }
+    }
+}
+Erc20Transfer.prototype.watchTransferOut = async function(fromBlock = 0) {
+    while (!this.stop) {
+        let toBlock = await this.fromWeb3.eth.getBlockNumber();
+        if (toBlock < fromBlock) {
+            await sleep(10000);
+        } else {
+            let events = await this.fromChainHub.getPastEvents('TransferOut', {
+                filter: {
+                    erc20Address: this.fromErc20
+                },
+                fromBlock: fromBlock,
+                toBlock: toBlock
+            });
+            for (let i = 0; i < events.length; i++) {
+                let data = events[i].returnValues;
+                data.pending = false;
+                this.pre[data.id] = data;
+            }
+            fromBlock = toBlock + 1;
+            await sleep(2000);
+        }
+    }
+}
 /****************class end****************/
 for (let i = 0; i < config.external.erc20Address.length; i++) {
     let externalErc20 = config.external.erc20Address[i];
-    new Erc20Transfer(externalHubContract, internalHubContract, externalErc20).run();
-    new Erc20Transfer(internalHubContract, externalHubContract, null, externalErc20).run();
+    new Erc20Transfer(externalWeb3, internalWeb3, externalHubContract, internalHubContract, externalErc20).run();
+    new Erc20Transfer(internalWeb3, externalWeb3, internalHubContract, externalHubContract, null, externalErc20).run();
 }

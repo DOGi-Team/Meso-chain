@@ -14,6 +14,7 @@ contract PeerHub is Ownable{
   mapping (address => address) public contractMap;
   mapping (address => uint256) public transferOutId;
   mapping (address => uint256) public transferInId;
+  mapping (address => mapping (uint256 => bool)) public transferInStatus;
 
   function addContract(address _erc20Address, address _outErc20) public onlyOwner returns (bool){
   	require(_erc20Address != address(0));
@@ -39,25 +40,28 @@ contract PeerHub is Ownable{
     return true;
   }
 
-  function multTransferIn(uint256[] _id, address[] _erc20Address, address[] _from, address[] _to, uint256[] _value) public onlyOwner returns (bool){
-    require(_id.length > 0);
-    for (uint256 i = 0; i < _id.length; i++){
-      transferIn(_id[i],_erc20Address[i],_from[i],_to[i],_value[i]);
-    }
+  function transferIn(uint256 _id, address _erc20Address, address _from, address _to, uint256 _value) public onlyOwner returns (bool){
+    require(transferInStatus[_erc20Address][_id] == false);
+    return forceTransferIn(_id, _erc20Address, _from, _to, _value);
   }
 
-//change to array
-  function transferIn(uint256 _id, address _erc20Address, address _from, address _to, uint256 _value) private returns (bool){
+  function forceTransferIn(uint256 _id, address _erc20Address, address _from, address _to, uint256 _value) public onlyOwner returns (bool){
     require(_erc20Address != address(0));
     require(contractMap[_erc20Address] != address(0));
-    require(_id == transferInId[_erc20Address].add(1));
 
     IERC20 _erc20 = IERC20(_erc20Address);
 
     _erc20.transfer(_to, _value);
-    transferInId[_erc20Address] = _id;
+    transferInStatus[_erc20Address][_id] = true;
+    if(_id > transferInId[_erc20Address]){
+      transferInId[_erc20Address] = _id;
+    }
     emit TransferIn(_id, _erc20Address, _from, _to, _value, contractMap[_erc20Address]);
 
     return true;
+  }
+
+  function setTransferInId(uint256 _id, address _erc20Address) public onlyOwner returns (bool){
+    transferInId[_erc20Address] = _id;
   }
 }
