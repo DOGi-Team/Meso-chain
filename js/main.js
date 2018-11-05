@@ -63,11 +63,10 @@ Erc20Transfer.prototype.checkAddress = async function() {
 Erc20Transfer.prototype.sendTransferIn = function(id) {
 	let self = this;
     this.pre[id].pending = true;
-    this.toChainHub.methods.transferIn(this.pre[id].id, this.pre[id].erc20Address, this.pre[id].from, this.pre[id].to, this.pre[id].value).send().on('error', function(error) {
+    this.toChainHub.methods.transferIn(this.pre[id].id, this.pre[id].outErc20, this.pre[id].from, this.pre[id].to, this.pre[id].value).send().on('error', function(error) {
         console.log(error.message);
         if (self.pre.hasOwnProperty(id)) self.pre[id].pending = false;
     }).on('receipt', function(receipt) {
-    	console.log(receipt.status);
     	console.log('Add transferIn ' + JSON.stringify(receipt.events.TransferIn.returnValues));
         // if (typeof receipt.events.TransferIn !== 'undefined') delete this.pre[receipt.events.TransferIn.returnValues.id];
     });
@@ -89,7 +88,7 @@ Erc20Transfer.prototype.run = async function() {
         data.pending = false;
         this.pre[data.id] = data;
     }
-    this.watchTransferIn(toBlock + 1);
+    this.watchTransferOut(toBlock + 1);
     toBlock = await this.toWeb3.eth.getBlockNumber();
     events = await this.toChainHub.getPastEvents('TransferIn', {
         filter: {
@@ -102,7 +101,7 @@ Erc20Transfer.prototype.run = async function() {
     	// console.log(events[i].returnValues);
         delete this.pre[events[i].returnValues.id];
     }
-    this.watchTransferOut(toBlock + 1);
+    this.watchTransferIn(toBlock + 1);
     while (!this.stop) {
         for (let i in this.pre) {
             if (this.pre[i].pending) continue;
@@ -135,6 +134,7 @@ Erc20Transfer.prototype.watchTransferIn = async function(fromBlock = 0) {
 Erc20Transfer.prototype.watchTransferOut = async function(fromBlock = 0) {
     while (!this.stop) {
         let toBlock = await this.fromWeb3.eth.getBlockNumber();
+        console.log(this.fromErc20,fromBlock,toBlock);
         if (toBlock < fromBlock) {
             await sleep(10000);
         } else {
