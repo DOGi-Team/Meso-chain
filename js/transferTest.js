@@ -15,9 +15,9 @@ if (config.internal.WebsocketProvider !== undefined) {
 if (config.external.HttpProvider !== undefined) {
     var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
 }
-let internalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
+let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
 let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
-let externalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
+let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
 let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
 let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress);
 let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress);
@@ -80,7 +80,7 @@ Robot.prototype.takeErc20 = async function(fromPrivateKey, index, value) {
     this.fromIndex = index;
     await this['chain' + index].erc20.methods.transfer(this['chain' + index].account.address, value).send({
         from: fromAccount.address,
-        gas: 3000000,
+        gas: 60000,
         gasPrice: gasPrice
     }).on('error', (error) => {
         console.log('Transfer erc20 error: ' + error);
@@ -89,7 +89,7 @@ Robot.prototype.takeErc20 = async function(fromPrivateKey, index, value) {
         from: fromAccount.address,
         to: this['chain' + index].account.address,
         value: 1e16,
-        gas: 3000000,
+        gas: 30000,
         gasPrice: gasPrice
     }).on('error', (error) => {
         console.log('Transfer eth error: ' + error);
@@ -114,18 +114,19 @@ Robot.prototype.transfer = async function(factor = 0.01 * Math.random()) {
     let transferAmount = erc20Amount * factor;
     await chain1.erc20.methods.approve(chain1.hub.options.address, transferAmount).send({
         from: chain1.account.address,
-        gas: 1000000,
+        gas: 50000,
         gasPrice: gasPrice
     });
     await chain1.hub.methods.transferOut(chain1.erc20.options.address, chain2.account.address, transferAmount).send({
         from: chain1.account.address,
-        gas: 1000000,
+        gas: 100000,
         gasPrice: gasPrice
     });
+    console.log('prepare success: ' + chain2.account.address);
 }
 Robot.prototype.pre = async function() {
     await this.checkAddress();
-    await this.takeErc20(externalPrivateKey, 1, 1000000);
+    await this.takeErc20(externalPrivateKey, 1, 10000000);
 }
 Robot.prototype.run = async function() {
     while (this.fromIndex != 0) {
@@ -138,7 +139,7 @@ let testInternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_in
 let testExternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_external_private.key').toString().split('\n');
 async function pre() {
     for (let i = 0; i < 3; i++) {
-        await new Robot(new Chain(externalWeb3, externalHubContract, config.external.erc20Address[0], testExternalPrivateKey[i]), new Chain(internalWeb3, internalHubContract, undefined, testInternalPrivateKey[i])).pre();
+        await new Robot(new Chain(externalWeb3, externalHubContract, config.external.erc20Address[0], '0x' + testExternalPrivateKey[i]), new Chain(internalWeb3, internalHubContract, undefined, '0x' + testInternalPrivateKey[i])).pre();
     }
 }
 

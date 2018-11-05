@@ -4,3 +4,6 @@
 [submodule "vendor/go-ethereum"]
 	path = vendor/go-ethereum
 	url = https://github.com/TangHHH/go-ethereum.git
+[submodule "vendor/web3.js"]
+	path = vendor/web3.js
+	url = https://github.com/TangHHH/web3.js.git

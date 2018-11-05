@@ -1,21 +1,34 @@
 const Web3 = require('web3');
 const fs = require('fs');
 const net = require('net');
-let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
+const config = require('../json/config.json');
 if (config.internal.WebsocketProvider !== undefined) {
     var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
 }
-// web3 = new Web3(new Web3.providers.HttpProvider("http://127.0.0.1:8545"));
-// web3 = new Web3(new Web3.providers.IpcProvider("\\\\.\\pipe\\geth.ipc",net));
-let privateKey = fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
-let account = internalWeb3.eth.accounts.wallet.add(privateKey);
-let hub = new internalWeb3.eth.Contract(config.hubAbi, null, {
-    from: account.address,
+if (config.external.HttpProvider !== undefined) {
+    var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
+}
+let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
+let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
+let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
+let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
+let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, null, {
+    from: externalAccount.address,
     data: config.hubCode,
     gas: 3000000
 });
-async function deploy() {
-    hub = await hub.deploy().send();
-    console.log(hub.options.address);
+let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, null, {
+    from: internalAccount.address,
+    data: config.hubCode,
+    gas: 3000000
+});
+async function deploy(hubContract) {
+    hub = await hubContract.deploy().send();
+    return hub.options.address;
 }
-deploy();
+deploy(internalHubContract).then(function(address){
+	console.log('Internal hub address: ' + address);
+});
+deploy(externalHubContract).then(function(address){
+	console.log('External hub address: ' + address);
+});

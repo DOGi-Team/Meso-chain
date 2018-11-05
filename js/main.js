@@ -8,24 +8,25 @@ function sleep(time = 0) {
 const Web3 = require('web3');
 const fs = require('fs');
 const net = require('net');
-let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
+const config = require('../json/config.json');
+// let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
 if (config.internal.WebsocketProvider !== undefined) {
     var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
 }
 if (config.external.HttpProvider !== undefined) {
     var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
 }
-let internalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
-let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
-let externalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
+let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
+let internalAccount = internalWeb3.eth.accounts.privateKeyToAccount(internalPrivateKey);
+let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
 let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
 let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress, {
     from: externalAccount.address,
-    gas: 3000000
+    gas: 300000
 });
 let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress, {
     from: internalAccount.address,
-    gas: 3000000
+    gas: 300000
 });
 process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);
@@ -59,16 +60,19 @@ Erc20Transfer.prototype.checkAddress = async function() {
         throw new Error('No erc20 address.');
     }
 };
+Erc20Transfer.prototype.sendTransferIn = function(id) {
+	let self = this;
+    this.pre[id].pending = true;
+    this.toChainHub.methods.transferIn(this.pre[id].id, this.pre[id].erc20Address, this.pre[id].from, this.pre[id].to, this.pre[id].value).send().on('error', function(error) {
+        console.log(error.message);
+        if (self.pre.hasOwnProperty(id)) self.pre[id].pending = false;
+    }).on('receipt', function(receipt) {
+    	console.log(receipt.status);
+    	console.log('Add transferIn ' + JSON.stringify(receipt.events.TransferIn.returnValues));
+        // if (typeof receipt.events.TransferIn !== 'undefined') delete this.pre[receipt.events.TransferIn.returnValues.id];
+    });
+}
 Erc20Transfer.prototype.run = async function() {
-    let sendTransferIn = function(id) {
-        this.pre[id].pending = true;
-        this.toChainHub.methods.transferIn(this.pre[id].id, this.pre[id].erc20Address, this.pre[id].from, this.pre[id].to, this.pre[id].value).send().on('error', function(error) {
-            console.error(error);
-            if (this.pre.hasOwnProperty(id)) this.pre[id].pending = false;
-        }).on('receipt', function(receipt) {
-            // if (typeof receipt.events.TransferIn !== 'undefined') delete this.pre[receipt.events.TransferIn.returnValues.id];
-        });
-    }
     await this.checkAddress();
     this.stop = false;
     let toBlock = await this.fromWeb3.eth.getBlockNumber();
@@ -80,6 +84,7 @@ Erc20Transfer.prototype.run = async function() {
         toBlock: toBlock
     });
     for (let i = 0; i < events.length; i++) {
+    	// console.log(events[i].returnValues);
         let data = events[i].returnValues;
         data.pending = false;
         this.pre[data.id] = data;
@@ -94,13 +99,14 @@ Erc20Transfer.prototype.run = async function() {
         toBlock: toBlock
     });
     for (let i = 0; i < events.length; i++) {
+    	// console.log(events[i].returnValues);
         delete this.pre[events[i].returnValues.id];
     }
     this.watchTransferOut(toBlock + 1);
     while (!this.stop) {
         for (let i in this.pre) {
             if (this.pre[i].pending) continue;
-            sendTransferIn(i);
+            this.sendTransferIn(i);
         }
         await sleep(15000);
     }

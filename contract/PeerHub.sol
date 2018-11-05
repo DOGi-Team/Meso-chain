@@ -40,7 +40,7 @@ contract PeerHub is Ownable{
     return true;
   }
 
-  function transferIn(uint256 _id, address _erc20Address, address _from, address _to, uint256 _value) public onlyOwner returns (bool){
+  function transferIn(uint256 _id, address _erc20Address, address _from, address _to, uint256 _value) public returns (bool){
     require(transferInStatus[_erc20Address][_id] == false);
     return forceTransferIn(_id, _erc20Address, _from, _to, _value);
   }
