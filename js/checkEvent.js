@@ -5,13 +5,16 @@ const config = require('../json/config.json');
 if (config.internal.WebsocketProvider !== undefined) {
     var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
 }
+if (config.external.WebsocketProvider !== undefined) {
+    var externalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.external.WebsocketProvider));
+}
 if (config.external.HttpProvider !== undefined) {
     var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
 }
 let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
 let internalAccount = internalWeb3.eth.accounts.privateKeyToAccount(internalPrivateKey);
 let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
-let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
+let externalAccount = externalWeb3.eth.accounts.privateKeyToAccount(externalPrivateKey);
 let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress, {
     from: externalAccount.address,
     gas: 300000
@@ -25,12 +28,13 @@ process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);
     process.exit(1) // To exit with a 'failure' code
 });
-
-async function main(){
-	// let erc20Address = await externalHubContract.methods.contractMap(config.external.erc20Address[0]).call();
-	// console.log(erc20Address);
-	let balance = await internalErc20.methods.balanceOf(config.internal.hubAddress).call();
-	console.log(balance);
-	console.log(await internalHubContract.methods.isOwner().call());
-}
-main();
+let internalErc20Address = '0x7A780e0e4455a429928d3c44b76A0fd34972ec10';
+let externalErc20Address = '0xfc4e3DA179efd5D723Cc9423C6aE21CcE5dE41C0';
+(async () => {
+    let events = await externalWeb3.eth.getPastLogs({
+        fromBlock: '0',
+        address: '0xfc4e3DA179efd5D723Cc9423C6aE21CcE5dE41C0'
+    });
+    console.log(events);
+    process.exit();
+})();

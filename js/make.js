@@ -5,13 +5,13 @@ const config = require('../json/config.json');
 if (config.internal.WebsocketProvider !== undefined) {
     var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
 }
-if (config.external.HttpProvider !== undefined) {
-    var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
+if (config.external.WebsocketProvider !== undefined) {
+    var externalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.external.WebsocketProvider));
 }
 let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
-let internalAccount = internalWeb3.eth.accounts.wallet.add(internalPrivateKey);
+let internalAccount = internalWeb3.eth.accounts.privateKeyToAccount(internalPrivateKey);
 let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
-let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
+let externalAccount = externalWeb3.eth.accounts.privateKeyToAccount(externalPrivateKey);
 let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, null, {
     from: externalAccount.address,
     data: config.hubCode,

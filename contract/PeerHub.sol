@@ -63,5 +63,6 @@ contract PeerHub is Ownable{
 
   function setTransferInId(uint256 _id, address _erc20Address) public onlyOwner returns (bool){
     transferInId[_erc20Address] = _id;
+    return true;
   }
 }

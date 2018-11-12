@@ -13,20 +13,20 @@ const config = require('../json/config.json');
 if (config.internal.WebsocketProvider !== undefined) {
     var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
 }
-if (config.external.HttpProvider !== undefined) {
-    var externalWeb3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
+if (config.external.WebsocketProvider !== undefined) {
+    var externalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.external.WebsocketProvider));
 }
 let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
 let internalAccount = internalWeb3.eth.accounts.privateKeyToAccount(internalPrivateKey);
 let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
-let externalAccount = externalWeb3.eth.accounts.wallet.add(externalPrivateKey);
+let externalAccount = externalWeb3.eth.accounts.privateKeyToAccount(externalPrivateKey);
 let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress, {
     from: externalAccount.address,
-    gas: 300000
+    gas: 200000
 });
 let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress, {
     from: internalAccount.address,
-    gas: 300000
+    gas: 200000
 });
 process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);
@@ -134,7 +134,6 @@ Erc20Transfer.prototype.watchTransferIn = async function(fromBlock = 0) {
 Erc20Transfer.prototype.watchTransferOut = async function(fromBlock = 0) {
     while (!this.stop) {
         let toBlock = await this.fromWeb3.eth.getBlockNumber();
-        console.log(this.fromErc20,fromBlock,toBlock);
         if (toBlock < fromBlock) {
             await sleep(10000);
         } else {

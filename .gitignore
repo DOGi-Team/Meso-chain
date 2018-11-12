@@ -1,2 +1,4 @@
 /chain-data
 /privatekey
+*.sublime-project
+*.sublime-workspace
