@@ -1,162 +1,129 @@
-function sleep(time = 0) {
-    return new Promise((resolve, reject) => {
-        setTimeout(() => {
-            resolve();
-        }, time);
-    })
-}
-const Web3 = require('web3');
-const fs = require('fs');
-const net = require('net');
-const config = require('../json/config.json');
-// let config = JSON.parse(fs.readFileSync(__dirname + '/../json/config.json').toString());
-if (config.internal.WebsocketProvider !== undefined) {
-    var internalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
-}
-if (config.external.WebsocketProvider !== undefined) {
-    var externalWeb3 = new Web3(new Web3.providers.WebsocketProvider(config.external.WebsocketProvider));
-}
-let internalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
-let internalAccount = internalWeb3.eth.accounts.privateKeyToAccount(internalPrivateKey);
-let externalPrivateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/external_private.key').toString();
-let externalAccount = externalWeb3.eth.accounts.privateKeyToAccount(externalPrivateKey);
-let externalHubContract = new externalWeb3.eth.Contract(config.hubAbi, config.external.hubAddress, {
-    from: externalAccount.address,
-    gas: 200000
-});
-let internalHubContract = new internalWeb3.eth.Contract(config.hubAbi, config.internal.hubAddress, {
-    from: internalAccount.address,
-    gas: 200000
-});
+const program = require('commander');
+const common = require('./common');
+const copyErc20 = require('./copyErc20');
 process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);
     process.exit(1) // To exit with a 'failure' code
 });
-/****************class begin****************/
-function Erc20Transfer(fromWeb3, toWeb3, fromChainHub, toChainHub, fromErc20, toErc20) {
-    this.fromWeb3 = fromWeb3;
-    this.toWeb3 = toWeb3;
-    this.fromChainHub = fromChainHub;
-    this.toChainHub = toChainHub;
-    this.fromErc20 = fromErc20;
-    this.toErc20 = toErc20;
-    this.stop = true;
-    this.pre = {};
-}
-Erc20Transfer.prototype.checkAddress = async function() {
-    if (this.fromErc20) {
-        this.toErc20 = await this.fromChainHub.methods.contractMap(this.fromErc20).call();
-        let confirmFromErc20 = await this.toChainHub.methods.contractMap(this.toErc20).call();
-        if (confirmFromErc20 != this.fromErc20) {
-            throw new Error('Non-correspondence erc20 address.');
-        }
-    } else if (this.toErc20) {
-        this.fromErc20 = await this.toChainHub.methods.contractMap(this.toErc20).call();
-        let confirmToErc20 = await this.fromChainHub.methods.contractMap(this.fromErc20).call();
-        if (confirmToErc20 != this.toErc20) {
-            throw new Error('Non-correspondence erc20 address.');
-        }
-    } else {
-        throw new Error('No erc20 address.');
+
+function transfer() {
+    const Erc20Transfer = require('./transfer');
+    for (let i = 0; i < common.external.erc20Address.length; i++) {
+        let externalErc20 = common.external.erc20Address[i];
+        new Erc20Transfer(common.external.web3, common.internal.web3, common.external.hubContract, common.internal.hubContract, externalErc20).run();
+        new Erc20Transfer(common.internal.web3, common.external.web3, common.internal.hubContract, common.external.hubContract, null, externalErc20).run();
     }
-};
-Erc20Transfer.prototype.sendTransferIn = function(id) {
-	let self = this;
-    this.pre[id].pending = true;
-    this.toChainHub.methods.transferIn(this.pre[id].id, this.pre[id].outErc20, this.pre[id].from, this.pre[id].to, this.pre[id].value).send().on('error', function(error) {
-        console.log(error.message);
-        if (self.pre.hasOwnProperty(id)) self.pre[id].pending = false;
-    }).on('receipt', function(receipt) {
-    	console.log('Add transferIn ' + JSON.stringify(receipt.events.TransferIn.returnValues));
-        // if (typeof receipt.events.TransferIn !== 'undefined') delete this.pre[receipt.events.TransferIn.returnValues.id];
+}
+
+function testRun() {
+    const test = require('./transferTest');
+    let testInternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_internal_private.key').toString().split('\n');
+    let testExternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_external_private.key').toString().split('\n');
+    for (let i = 0; i < 3; i++) {
+        new test.Robot(
+            new test.Chain(common.external.web3, common.external.hubContract, common.external.erc20Address[0], '0x' + testExternalPrivateKey[i]),
+            new test.Chain(common.internal.web3, common.internal.hubContract, undefined, '0x' + testInternalPrivateKey[i])
+        ).run();
+    }
+}
+
+async function testPre() {
+    const test = require('./transferTest');
+    let testInternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_internal_private.key').toString().split('\n');
+    let testExternalPrivateKey = fs.readFileSync(__dirname + '/../privatekey/test_external_private.key').toString().split('\n');
+    for (let i = 0; i < 3; i++) {
+        await new test.Robot(
+            new test.Chain(common.external.web3, common.external.hubContract, common.external.erc20Address[0], '0x' + testExternalPrivateKey[i]),
+            new test.Chain(common.internal.web3, common.internal.hubContract, undefined, '0x' + testInternalPrivateKey[i])
+        ).pre();
+    }
+}
+
+async function newErc20(name = 'TestErc20', symbol = 'TE2', decimals = 6, totalSupply = 1e18) {
+    let erc20 = await new common.external.web3.eth.Contract(common.erc20Abi).deploy({
+        data: common.erc20Code,
+        arguments: [name, symbol, decimals, totalSupply]
+    }).send({
+        from: common.external.account.address,
+        gas: 3000000
+    }).on('error', error => {
+        console.log('Deploy erc20 error: ' + error);
     });
+    console.log("Erc20 deploy success: " + erc20.options.address);
+    await copyErc20(erc20.options.address);
 }
-Erc20Transfer.prototype.run = async function() {
-    await this.checkAddress();
-    this.stop = false;
-    let toBlock = await this.fromWeb3.eth.getBlockNumber();
-    let events = await this.fromChainHub.getPastEvents('TransferOut', {
-        filter: {
-            erc20Address: this.fromErc20
-        },
-        fromBlock: 0,
-        toBlock: toBlock
-    });
-    for (let i = 0; i < events.length; i++) {
-    	// console.log(events[i].returnValues);
-        let data = events[i].returnValues;
-        data.pending = false;
-        this.pre[data.id] = data;
+async function deployHub(externalHubAddress, internalHubAddress) {
+    let hub;
+    if (typeof externalHubAddress === 'undefined') {
+        hub = await common.external.hubContract.deploy({ data: common.hubCode }).send({
+        	gas: 3000000
+        });
+        externalHubAddress = hub.options.address;
+        console.log('deploy externalHub: ' + externalHubAddress);
+    } else if (externalHubAddress === false) {
+        externalHubAddress = common.external.hubAddress;
     }
-    this.watchTransferOut(toBlock + 1);
-    toBlock = await this.toWeb3.eth.getBlockNumber();
-    events = await this.toChainHub.getPastEvents('TransferIn', {
-        filter: {
-            erc20Address: this.toErc20
-        },
-        fromBlock: 0,
-        toBlock: toBlock
-    });
-    for (let i = 0; i < events.length; i++) {
-    	// console.log(events[i].returnValues);
-        delete this.pre[events[i].returnValues.id];
+    if (typeof internalHubAddress === 'undefined') {
+        hub = await common.internal.hubContract.deploy({ data: common.hubCode }).send({gas: 3000000});
+        internalHubAddress = hub.options.address;
+        console.log('deploy internalHub: ' + internalHubAddress);
+    } else if (internalHubAddress === false) {
+        internalHubAddress = common.internal.hubAddress;
     }
-    this.watchTransferIn(toBlock + 1);
-    while (!this.stop) {
-        for (let i in this.pre) {
-            if (this.pre[i].pending) continue;
-            this.sendTransferIn(i);
+    common.setHubAddress(externalHubAddress, internalHubAddress);
+    console.log('set hub success. ' + externalHubAddress + ' ' + internalHubAddress);
+}
+
+program.version('0.0.1')
+program.command('deploy')
+    .description('Deploy hub.')
+    .option('-i, --internal [value]', 'internal hub address')
+    .option('-e, --external [value]', 'external hub address')
+    .option('--ne')
+    .option('--ni')
+    .action(function(option) {
+        let externalHubAddress;
+        let internalHubAddress;
+        if (option.ne) {
+            externalHubAddress = false;
+        } else if (option.external) {
+            externalHubAddress = option.external;
         }
-        await sleep(15000);
-    }
-};
-Erc20Transfer.prototype.watchTransferIn = async function(fromBlock = 0) {
-    while (!this.stop) {
-        let toBlock = await this.toWeb3.eth.getBlockNumber();
-        if (toBlock < fromBlock) {
-            await sleep(10000);
-        } else {
-            let events = await this.toChainHub.getPastEvents('TransferIn', {
-                filter: {
-                    erc20Address: this.toErc20
-                },
-                fromBlock: fromBlock,
-                toBlock: toBlock
-            });
-            for (let i = 0; i < events.length; i++) {
-                delete this.pre[events[i].returnValues.id];
-            }
-            fromBlock = toBlock + 1;
-            await sleep(2000);
+        if (option.ni) {
+            internalHubAddress = false;
+        } else if (option.internal) {
+            internalHubAddress = option.internal;
         }
-    }
-}
-Erc20Transfer.prototype.watchTransferOut = async function(fromBlock = 0) {
-    while (!this.stop) {
-        let toBlock = await this.fromWeb3.eth.getBlockNumber();
-        if (toBlock < fromBlock) {
-            await sleep(10000);
-        } else {
-            let events = await this.fromChainHub.getPastEvents('TransferOut', {
-                filter: {
-                    erc20Address: this.fromErc20
-                },
-                fromBlock: fromBlock,
-                toBlock: toBlock
-            });
-            for (let i = 0; i < events.length; i++) {
-                let data = events[i].returnValues;
-                data.pending = false;
-                this.pre[data.id] = data;
-            }
-            fromBlock = toBlock + 1;
-            await sleep(2000);
-        }
-    }
-}
-/****************class end****************/
-for (let i = 0; i < config.external.erc20Address.length; i++) {
-    let externalErc20 = config.external.erc20Address[i];
-    new Erc20Transfer(externalWeb3, internalWeb3, externalHubContract, internalHubContract, externalErc20).run();
-    new Erc20Transfer(internalWeb3, externalWeb3, internalHubContract, externalHubContract, null, externalErc20).run();
-}
+        deployHub(externalHubAddress, internalHubAddress);
+    })
+
+program.command('adderc20 <address>')
+    .action(function(address) {
+        copyErc20(address);
+    })
+
+program.command('newerc20')
+    .option('--name [value]', '', 'TestErc20')
+    .option('--symbol [value]', '', 'TE2')
+    .option('--decimals [value]', '', '6')
+    .option('--totalSupply [value]', '', '1000000000000000000')
+    .action(function(option) {
+        newErc20(option.name, option.symbol, option.decimals, option.totalSupply);
+    })
+
+program.command('transfer')
+    .action(transfer)
+
+program.command('testrun')
+    .action(testRun)
+
+program.command('testpre')
+.action(testPre)
+
+program.command('server')
+    .action(function() {
+        const server = require('./server');
+        server.listen(3000);
+    })
+
+program.parse(process.argv);

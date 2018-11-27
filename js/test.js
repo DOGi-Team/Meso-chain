@@ -1,21 +1,38 @@
-const Web3 = require('web3');
-const fs = require('fs');
-const net = require('net');
-const config = require('../json/config.json');
-if (config.external.WebsocketProvider !== undefined) {
-    var web3_1 = new Web3(new Web3.providers.WebsocketProvider(config.external.WebsocketProvider));
+var program = require('commander');
+
+function range(val) {
+return val.split('..').map(Number);
 }
-if (config.external.HttpProvider !== undefined) {
-    var web3_2 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
+
+function list(val) {
+return val.split(',');
 }
-process.on('unhandledRejection', error => {
-    console.error('unhandledRejection', error);
-    process.exit(1) // To exit with a 'failure' code
+let a;
+
+program
+.version('0.0.1')
+.usage('test')
+.option('-C, --chdir [value]', '设置服务器节点','/home/conan/server')
+.option('-c, --config [value]', '设置配置文件','./deploy.conf')
+.option('-m, --max <n>', '最大连接数', parseInt)
+.option('-s, --seed <n>', '出始种子', parseFloat)
+.option('-r, --range <a>..<b>', '阈值区间', range)
+.option('-l, --list <items>', 'IP列表', list)
+
+program
+.command('deploy <name>')
+.description('Deploy hub.')
+.option('--ne','internal hub address')
+.action(function(option,cmd){
+console.log(cmd.isNe);
 });
-(async () => {
-    let block = await web3_1.eth.getBlock(4229999)
-    console.log(block);
-    block = await web3_2.eth.getBlock(4229999)
-    console.log(block);
-    process.exit();
-})();
+
+program.parse(process.argv);
+
+console.log(' chdir - %s ', program.chdir);
+console.log(' config - %s ', program.config);
+console.log(' max: %j', program.max);
+console.log(' seed: %j', program.seed);
+program.range = program.range || [];
+console.log(' range: %j..%j', program.range[0], program.range[1]);
+console.log(' list: %j', program.list);
