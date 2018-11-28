@@ -1,11 +1,11 @@
 const Web3 = require('web3');
 const fs = require('fs');
 const config = require('../json/config.json');
-if (config.internal.WebsocketProvider !== undefined) {
-    config.internal.web3 = new Web3(new Web3.providers.WebsocketProvider(config.internal.WebsocketProvider));
+if (config.internal.HttpProvider !== undefined) {
+    config.internal.web3 = new Web3(new Web3.providers.HttpProvider(config.internal.HttpProvider));
 };
-if (config.external.WebsocketProvider !== undefined) {
-    config.external.web3 = new Web3(new Web3.providers.WebsocketProvider(config.external.WebsocketProvider));
+if (config.external.HttpProvider !== undefined) {
+    config.external.web3 = new Web3(new Web3.providers.HttpProvider(config.external.HttpProvider));
 };
 config.internal.privateKey = '0x' + fs.readFileSync(__dirname + '/../privatekey/internal_private.key').toString();
 config.internal.account = config.internal.web3.eth.accounts.privateKeyToAccount(config.internal.privateKey);
@@ -28,11 +28,11 @@ function outputConfig() {
         erc20Abi: config.erc20Abi,
         internal: {
             hubAddress: config.internal.hubAddress,
-            WebsocketProvider: config.internal.WebsocketProvider
+            HttpProvider: config.internal.HttpProvider
         },
         external: {
             hubAddress: config.external.hubAddress,
-            WebsocketProvider: config.external.WebsocketProvider,
+            HttpProvider: config.external.HttpProvider,
             erc20Address: config.external.erc20Address
         }
     }));

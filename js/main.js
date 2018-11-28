@@ -1,5 +1,6 @@
 const program = require('commander');
 const common = require('./common');
+const fs = require('fs');
 const copyErc20 = require('./copyErc20');
 process.on('unhandledRejection', error => {
     console.error('unhandledRejection', error);

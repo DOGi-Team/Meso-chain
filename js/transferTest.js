@@ -103,7 +103,7 @@ class Robot {
     }
     async pre() {
         await this.checkAddress();
-        await this.takeErc20(config.external.privateKey, 1, 10000000);
+        await this.takeErc20(common.external.privateKey, 1, 10000000);
         console.log('prepare success.');
     }
     async run() {

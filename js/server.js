@@ -1,6 +1,42 @@
 const common = require('./common');
 const express = require('express')
-const app = express()
+
+function ctrlDecorator(ctrl, dealer) {
+  if ({}.toString.call(ctrl) !== '[object AsyncFunction]') {
+    return ctrl;
+  }
+  return function (req, res, next) {
+    return ctrl(req, res, next).catch(rej => {
+      if (dealer) return dealer(req, res, next, rej);
+      res.send('Internal Error');
+    });
+  };
+}
+
+function routerDecorator(router, dealer) {
+  const methods = require('methods');
+  [...methods, 'all'].forEach(method => {
+    if (router[method]) {
+      router[method] = function (path, ...fns) {
+        if (fns.length === 0) return;
+        const route = this.route(path);
+        const ctrlIndex = fns.length - 1;
+        if (typeof fns[ctrlIndex] !== 'function') throw Error('The last param should be a controller, but not a function');
+        fns[ctrlIndex] = ctrlDecorator(fns[ctrlIndex], dealer);
+        route[method].apply(route, fns);
+        return this;
+      };
+    }
+  });
+  return router;
+}
+
+const app = routerDecorator(express(), function (req, res, next, rej) {
+  console.warn('捕捉到控制器内Rejection', rej.message);
+  res.status(500);
+  res.send('内部错误');
+});
+
 
 let hubEvents = {
     TransferOut: {},
@@ -19,7 +55,7 @@ for (let address of common.external.erc20Address) {
         if (toBlock < fromBlock) {
             await common.sleep(10000);
         } else {
-            let events = await hubContract.getPastEvents('TransferOut', {
+            let events = await common.external.hubContract.getPastEvents('TransferOut', {
                 fromBlock: fromBlock,
                 toBlock: toBlock
             });
@@ -35,7 +71,7 @@ for (let address of common.external.erc20Address) {
                     transactionHash: event.transactionHash
                 }
             }
-            events = await hubContract.getPastEvents('TransferIn', {
+            events = await common.external.hubContract.getPastEvents('TransferIn', {
                 fromBlock: fromBlock,
                 toBlock: toBlock
             });
@@ -125,5 +161,20 @@ app.get('/blockNumber', async (req, res) => {
         number: number
     });
 })
+
+app.get('/peers', async (req, res) => {
+    res.json([
+        {name: 'Meso1',status:true,internalStatus:true,transferStatus:true},
+        {name: 'Meso2',status:true,internalStatus:true,transferStatus:true},
+        {name: 'Meso3',status:true,internalStatus:true,transferStatus:true},
+        {name: 'Meso4',status:true,internalStatus:true,transferStatus:true},
+        {name: 'Meso5',status:true,internalStatus:true,transferStatus:true}
+    ]);
+})
+
+app.use(function (err, req, res, next) {
+  console.warn('错误处理中间捕获Exception', err);
+  res.send('内部错误');
+});
 
 module.exports = app;
