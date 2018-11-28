@@ -115,6 +115,11 @@ let getErc20Info = async (address) => {
     return erc20Info[address];
 }
 
+app.all('*', function (req, res, next) {
+  res.header('Access-Control-Allow-Origin', '*');
+  next();
+});
+
 app.get('/info', async (req, res) => {
     let erc20s = [];
     for (let erc20 of common.external.erc20Address) {
@@ -174,7 +179,7 @@ app.get('/peers', async (req, res) => {
 
 app.use(function (err, req, res, next) {
   console.warn('错误处理中间捕获Exception', err);
-  res.send('内部错误');
+  res.json({error:'内部错误'});
 });
 
 module.exports = app;
