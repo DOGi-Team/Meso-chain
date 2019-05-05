@@ -1,12 +1,9 @@
-[submodule "go-ethereum"]
-	path = go-ethereum
-	url = https://github.com/TangHHH/go-ethereum.git
-[submodule "web3.js"]
-	path = web3.js
-	url = https://github.com/TangHHH/web3.js.git
-[submodule "burrow"]
-	path = burrow
-	url = https://github.com/TangHHH/burrow.git
-[submodule "openzeppelin-solidity"]
-	path = openzeppelin-solidity
+[submodule "vendor/openzeppelin-solidity"]
+	path = vendor/openzeppelin-solidity
 	url = https://github.com/TangHHH/openzeppelin-solidity.git
+[submodule "vendor/go-ethereum"]
+	path = vendor/go-ethereum
+	url = https://github.com/TangHHH/go-ethereum.git
+[submodule "vendor/web3.js"]
+	path = vendor/web3.js
+	url = https://github.com/TangHHH/web3.js.git
