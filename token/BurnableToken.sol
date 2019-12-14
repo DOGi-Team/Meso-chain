@@ -1,6 +1,7 @@
 pragma solidity ^0.4.24;
 
 import "./StandardToken.sol";
+// the token can be burned;
 
 contract BurnableToken is StandardToken {
 

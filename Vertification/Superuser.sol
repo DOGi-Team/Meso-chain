@@ -1,5 +1,5 @@
 pragma solidity ^0.4.24;
-
+//the funtion to manage superuser list
 
 import "./Ownable.sol";
 import "./RBAC.sol";

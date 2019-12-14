@@ -24,6 +24,7 @@ library Roles {
   
   function check(Role storage _role, address _account)
     internal
+    
     view
   {
     require(has(_role, _account));
