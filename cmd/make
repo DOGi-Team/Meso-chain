@@ -1,0 +1,1 @@
+..\bin\geth.exe --jspath "..\js" --exec "loadScript('make.js')" attach ws://127.0.0.1:8546
